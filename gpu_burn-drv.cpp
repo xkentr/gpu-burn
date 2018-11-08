@@ -343,13 +343,23 @@ void updateTemps(int handle, std::vector<int> *temps) {
 	const int readSize = 10240;
 	static int gpuIter = 0;
 	char data[readSize+1];
+	ssize_t n;
+	static bool done;
 
 	int curPos = 0;
-	do {
-		read(handle, data+curPos, sizeof(char));
-	} while (data[curPos++] != '\n');
+	while (!done) {
+		n = read(handle, data+curPos, sizeof(char));
+		if (n <= 0) {
+			done = true;
+			break;
+		}
+		if (data[curPos] == '\n')
+			break;
+	}
 
-	data[curPos-1] = 0;
+	data[curPos] = 0;
+	if (done)
+		return;
 
 	int tempValue;
 	// FIXME: The syntax of this print might change in the future..

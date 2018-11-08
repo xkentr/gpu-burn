@@ -1,12 +1,28 @@
-CUDAPATH=/usr/local/cuda
+CUDA_VERSION ?= "9.0"
+CUDA_PATH ?= /usr/local/cuda-$(CUDA_VERSION)
+lib ?= lib
+CXXFLAGS += -I=$(CUDA_PATH)/include
+LDFLAGS += -L=$(CUDA_PATH)/$(lib) -Wl,-rpath,$(CUDA_PATH)/$(lib)
+NVCC = nvcc
+LIBS = -lcuda -lcublas -lcudart
 
-# Have this point to an old enough gcc (for nvcc)
-GCCPATH=/usr
+installdir = /opt/cudatests/gpu_burn
 
-NVCC=nvcc
-CCPATH=${GCCPATH}/bin
+.PHONY: all
+all: compare.ptx gpu_burn
 
-drv:
-	PATH=${PATH}:.:${CCPATH}:${PATH} ${NVCC} -I${CUDAPATH}/include -arch=compute_30 -ptx compare.cu -o compare.ptx
-	g++ -O3 -Wno-unused-result -I${CUDAPATH}/include -c gpu_burn-drv.cpp
-	g++ -o gpu_burn gpu_burn-drv.o -O3 -lcuda -L${CUDAPATH}/lib64 -L${CUDAPATH}/lib -Wl,-rpath=${CUDAPATH}/lib64 -Wl,-rpath=${CUDAPATH}/lib -lcublas -lcudart -o gpu_burn
+compare.ptx: compare.cu
+	$(NVCC) $(NVCCFLAGS) -ptx -o $@ $<
+
+gpu_burn: gpu_burn-drv.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
+
+.PHONY: all
+install: all
+	install -d $(DESTDIR)$(installdir)
+	install -m 0644 compare.ptx $(DESTDIR)$(installdir)
+	install -m 0744 gpu_burn $(DESTDIR)$(installdir)
+
+.PHONY: clean
+clean:
+	rm -f compare.ptx gpu_burn
