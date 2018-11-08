@@ -28,7 +28,7 @@
  */
 
 #define SIZE 2048ul // Matrices are SIZE*SIZE..  2048^2 should be efficiently implemented in CUBLAS
-#define USEMEM 0.9 // Try to allocate 90% of memory
+#define USEMEM 0.5
 
 // Used to report op/s, measured through Visual Profiler, CUBLAS from CUDA 7.5
 // (Seems that they indeed take the naive dim^3 approach)
