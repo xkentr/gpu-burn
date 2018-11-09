@@ -414,7 +414,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 	bool childReport = false;
 	bool done = false;
 	while (!done && (changeCount = select(maxHandle+1, &waitHandles, NULL, NULL, NULL))) {
-		size_t thisTime = time(0);
+		time_t thisTime = time(0);
 		struct timespec thisTimeSpec;
 		clock_gettime(CLOCK_REALTIME, &thisTimeSpec);
 
@@ -461,7 +461,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 			if (tty_output || nextReport < elapsed || done) {
 				if (tty_output)
 					putchar('\r');
-				printf("%.1f%%  ", elapsed);
+				printf("%.1f%%  ", 100.0f * elapsed/float(runTime));
 				printf("proc'd: ");
 				for (size_t i = 0; i < clientCalcs.size(); ++i) {
 					printf("%d (%.0f Gflop/s) ", clientCalcs.at(i), clientGflops.at(i));
@@ -487,18 +487,14 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 						printf("- ");
 				}
 
-				if (!tty_output)
-					putchar('\n');
-				fflush(stdout);
+				if (tty_output)
+					fflush(stdout);
 			}
 
 			if (nextReport < elapsed || done) {
 				nextReport = elapsed + 30.0f;
-				printf("\n\tSummary at:   ");
+				printf("  at:   %s", ctime(&thisTime));
 				fflush(stdout);
-				system("date"); // Printing a date
-				fflush(stdout);
-				printf("\n");
 				//printf("\t(checkpoint)\n");
 				for (size_t i = 0; i < clientErrors.size(); ++i) {
 					if (clientErrors.at(i))
