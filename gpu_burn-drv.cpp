@@ -49,6 +49,8 @@
 #include <cuda.h>
 #include "cublas_v2.h"
 
+static bool tty_output;
+
 void checkError(int rCode, std::string desc = "") {
 	static std::map<int, std::string> g_errorStrings;
 	if (!g_errorStrings.size()) {
@@ -454,33 +456,37 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 		// Printing progress (if a child has initted already)
 		if (childReport) {
 			float elapsed = fminf((float)(thisTime-startTime)/(float)runTime*100.0f, 100.0f);
-			printf("\r%.1f%%  ", elapsed);
-			printf("proc'd: ");
-			for (size_t i = 0; i < clientCalcs.size(); ++i) {
-				printf("%d (%.0f Gflop/s) ", clientCalcs.at(i), clientGflops.at(i));
-				if (i != clientCalcs.size() - 1)
-					printf("- ");
-			}
-			printf("  errors: ");
-			for (size_t i = 0; i < clientErrors.size(); ++i) {
-				std::string note = "%d ";
-				if (clientCalcs.at(i) == -1)
-					note += " (DIED!)";
-				else if (clientErrors.at(i))
-					note += " (WARNING!)";
+			if (tty_output || nextReport < elapsed) {
+				if (tty_output)
+					putchar('\r');
+				printf("%.1f%%  ", elapsed);
+				printf("proc'd: ");
+				for (size_t i = 0; i < clientCalcs.size(); ++i) {
+					printf("%d (%.0f Gflop/s) ", clientCalcs.at(i), clientGflops.at(i));
+					if (i != clientCalcs.size() - 1)
+						printf("- ");
+				}
+				printf("  errors: ");
+				for (size_t i = 0; i < clientErrors.size(); ++i) {
+					std::string note = "%d ";
+					if (clientCalcs.at(i) == -1)
+						note += " (DIED!)";
+					else if (clientErrors.at(i))
+						note += " (WARNING!)";
 
-				printf(note.c_str(), clientErrors.at(i));
-				if (i != clientCalcs.size() - 1)
-					printf("- ");
-			}
-			printf("  temps: ");
-			for (size_t i = 0; i < clientTemp.size(); ++i) {
-				printf(clientTemp.at(i) != 0 ? "%d C " : "-- ", clientTemp.at(i));
-				if (i != clientCalcs.size() - 1)
-					printf("- ");
-			}
+					printf(note.c_str(), clientErrors.at(i));
+					if (i != clientCalcs.size() - 1)
+						printf("- ");
+				}
+				printf("  temps: ");
+				for (size_t i = 0; i < clientTemp.size(); ++i) {
+					printf(clientTemp.at(i) != 0 ? "%d C " : "-- ", clientTemp.at(i));
+					if (i != clientCalcs.size() - 1)
+						printf("- ");
+				}
 			
-			fflush(stdout);
+				fflush(stdout);
+			}
 
 			if (nextReport < elapsed) {
 				nextReport = elapsed + 10.0f;
@@ -566,7 +572,7 @@ template<class T> void launch(int runLength, bool useDoubles) {
 
 		close(mainPipe[1]);
 		int devCount;
-	    read(readMain, &devCount, sizeof(int));
+		read(readMain, &devCount, sizeof(int));
 
 		if (!devCount) {
 			fprintf(stderr, "No CUDA devices\n");
@@ -616,6 +622,8 @@ int main(int argc, char **argv) {
 		printf("Run length not specified in the command line.  Burning for 10 secs\n");
 	else 
 		runLength = atoi(argv[1+thisParam]);
+
+	tty_output = isatty(1);
 
 	if (useDoubles)
 		launch<double>(runLength, useDoubles);
