@@ -410,9 +410,10 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 	}
 	
 	int changeCount;
-	float nextReport = 10.0f;
+	float nextReport = 30.0f;
 	bool childReport = false;
-	while ((changeCount = select(maxHandle+1, &waitHandles, NULL, NULL, NULL))) {
+	bool done = false;
+	while (!done && (changeCount = select(maxHandle+1, &waitHandles, NULL, NULL, NULL))) {
 		size_t thisTime = time(0);
 		struct timespec thisTimeSpec;
 		clock_gettime(CLOCK_REALTIME, &thisTimeSpec);
@@ -453,10 +454,11 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 		for (size_t i = 0; i < clientFd.size(); ++i)
 			FD_SET(clientFd.at(i), &waitHandles);
 
+		done = startTime + runTime <= thisTime;
 		// Printing progress (if a child has initted already)
 		if (childReport) {
-			float elapsed = fminf((float)(thisTime-startTime)/(float)runTime*100.0f, 100.0f);
-			if (tty_output || nextReport < elapsed) {
+			float elapsed = (float)(thisTime-startTime);
+			if (tty_output || nextReport < elapsed || done) {
 				if (tty_output)
 					putchar('\r');
 				printf("%.1f%%  ", elapsed);
@@ -484,12 +486,14 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 					if (i != clientCalcs.size() - 1)
 						printf("- ");
 				}
-			
+
+				if (!tty_output)
+					putchar('\n');
 				fflush(stdout);
 			}
 
-			if (nextReport < elapsed) {
-				nextReport = elapsed + 10.0f;
+			if (nextReport < elapsed || done) {
+				nextReport = elapsed + 30.0f;
 				printf("\n\tSummary at:   ");
 				fflush(stdout);
 				system("date"); // Printing a date
@@ -514,8 +518,6 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 			exit(123);
 		}
 
-		if (startTime + runTime < thisTime)
-			break;
 	}
 
 	printf("\nKilling processes.. ");
