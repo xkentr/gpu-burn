@@ -1,16 +1,16 @@
-/* 
+/*
  * Copyright (c) 2016, Ville Timonen
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice, this
  *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -21,7 +21,7 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * The views and conclusions contained in the software and documentation are those
  * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
@@ -35,6 +35,8 @@
 #define OPS_PER_MUL 17188257792ul
 
 #include <cstdio>
+#include <cstdlib>
+#include <cerrno>
 #include <string>
 #include <map>
 #include <vector>
@@ -50,6 +52,7 @@
 #include "cublas_v2.h"
 
 static bool tty_output;
+static double usemem = USEMEM;
 
 void checkError(int rCode, std::string desc = "") {
 	static std::map<int, std::string> g_errorStrings;
@@ -91,9 +94,9 @@ void checkError(int rCode, std::string desc = "") {
 	}
 
 	if (rCode != CUDA_SUCCESS)
-		throw ((desc == "") ? 
-				std::string("Error: ") : 
-				(std::string("Error in \"") + desc + std::string("\": "))) + 
+		throw ((desc == "") ?
+				std::string("Error: ") :
+				(std::string("Error in \"") + desc + std::string("\": "))) +
 			g_errorStrings[rCode];
 }
 
@@ -110,9 +113,9 @@ void checkError(cublasStatus_t rCode, std::string desc = "") {
 	}
 
 	if (rCode != CUBLAS_STATUS_SUCCESS)
-		throw ((desc == "") ? 
-				std::string("Error: ") : 
-				(std::string("Error in \"") + desc + std::string("\": "))) + 
+		throw ((desc == "") ?
+				std::string("Error: ") :
+				(std::string("Error in \"") + desc + std::string("\": "))) +
 			g_errorStrings[rCode];
 }
 
@@ -171,7 +174,7 @@ template <class T> class GPU_Test {
 	void initBuffers(T *A, T *B) {
 		bind();
 
-		size_t useBytes = (size_t)((double)availMemory()*USEMEM);
+		size_t useBytes = (size_t)((double)availMemory()*usemem);
 		printf("Initialized device %d with %lu MB of memory (%lu MB available, using %lu MB of it), %s\n",
 				d_devNumber, totalMemory()/1024ul/1024ul, availMemory()/1024ul/1024ul, useBytes/1024ul/1024ul,
 				d_doubles ? "using DOUBLES" : "using FLOATS");
@@ -204,14 +207,14 @@ template <class T> class GPU_Test {
 							SIZE, SIZE, SIZE, &alphaD,
 							(const double*)d_Adata, SIZE,
 							(const double*)d_Bdata, SIZE,
-							&betaD, 
+							&betaD,
 							(double*)d_Cdata + i*SIZE*SIZE, SIZE), "DGEMM");
 			else
 				checkError(cublasSgemm(d_cublas, CUBLAS_OP_N, CUBLAS_OP_N,
 							SIZE, SIZE, SIZE, &alpha,
 							(const float*)d_Adata, SIZE,
 							(const float*)d_Bdata, SIZE,
-							&beta, 
+							&beta,
 							(float*)d_Cdata + i*SIZE*SIZE, SIZE), "SGEMM");
 		}
 	}
@@ -223,7 +226,7 @@ template <class T> class GPU_Test {
 			checkError(f.good() ? CUDA_SUCCESS : CUDA_ERROR_NOT_FOUND, std::string("couldn't find file \"") + kernelFile + "\" from working directory");
 		}
 		checkError(cuModuleLoad(&d_module, kernelFile), "load module");
-		checkError(cuModuleGetFunction(&d_function, d_module, 
+		checkError(cuModuleGetFunction(&d_function, d_module,
 					d_doubles ? "compareD" : "compare"), "get func");
 
 		checkError(cuFuncSetCacheConfig(d_function, CU_FUNC_CACHE_PREFER_L1), "L1 config");
@@ -323,7 +326,7 @@ template<class T> void startBurn(int index, int writeFd, T *A, T *B, bool double
 int pollTemp(pid_t *p) {
 	int tempPipe[2];
 	pipe(tempPipe);
-	
+
 	pid_t myPid = fork();
 
 	if (!myPid) {
@@ -331,7 +334,7 @@ int pollTemp(pid_t *p) {
 		dup2(tempPipe[1], STDOUT_FILENO); // Stdout
 		execlp("nvidia-smi", "nvidia-smi", "-l", "5", "-q", "-d", "TEMPERATURE", NULL);
 		fprintf(stderr, "Could not invoke nvidia-smi, no temps available\n");
-		
+
 		exit(0);
 	}
 
@@ -375,7 +378,7 @@ void updateTemps(int handle, std::vector<int> *temps) {
 
 void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int runTime) {
 	fd_set waitHandles;
-	
+
 	pid_t tempPid;
 	int tempHandle = pollTemp(&tempPid);
 	int maxHandle = tempHandle;
@@ -408,7 +411,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 		clientGflops.push_back(0.0f);
 		clientFaulty.push_back(false);
 	}
-	
+
 	int changeCount;
 	float nextReport = 30.0f;
 	bool childReport = false;
@@ -447,7 +450,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 
 		if (FD_ISSET(tempHandle, &waitHandles))
 			updateTemps(tempHandle, &clientTemp);
-		
+
 		// Resetting the listeners
 		FD_ZERO(&waitHandles);
 		FD_SET(tempHandle, &waitHandles);
@@ -520,7 +523,7 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 	fflush(stdout);
 	for (size_t i = 0; i < clientPid.size(); ++i)
 		kill(clientPid.at(i), 15);
-	
+
 	kill(tempPid, 15);
 	close(tempHandle);
 
@@ -596,7 +599,7 @@ template<class T> void launch(int runLength, bool useDoubles) {
 					close(slavePipe[1]);
 				}
 			}
-			
+
 			listenClients(clientPipes, clientPids, runLength);
 		}
 	}
@@ -608,18 +611,65 @@ template<class T> void launch(int runLength, bool useDoubles) {
 	free(B);
 }
 
+void print_usage (void)
+{
+	printf("Usage:\n");
+	printf("    %s [options] [run-length]\n\n");
+	printf("run-length\t\tnumber of seconds to run, default 10\n\n");
+	printf("Options:\n");
+	printf("  -d\t\t\tUse doubles instead of floats\n");
+	printf("  -m PCT\t\tUse PCT percent of available memory (default %u)\n",
+	       (unsigned)(usemem * 100.0));
+	printf("  -h\t\tPrint this help\n");
+}
+
 int main(int argc, char **argv) {
 	int runLength = 10;
 	bool useDoubles = false;
 	int thisParam = 0;
-	if (argc >= 2 && std::string(argv[1]) == "-d") {
+	while (argc - thisParam >= 2) {
+		if (std::string(argv[1+thisParam]) == "-h") {
+			print_usage();
+			return 0;
+		}
+		if (std::string(argv[1+thisParam]) == "-d") {
 			useDoubles = true;
 			thisParam++;
-		}
+		} else if (std::string(argv[1+thisParam]) == "-m") {
+			if (argc-thisParam < 2) {
+				fprintf(stderr, "missing argument for -m option\n");
+				print_usage();
+				return 1;
+			}
+			errno = 0;
+			unsigned long pct = std::strtoul(argv[2+thisParam], NULL, 10);
+			if (errno == ERANGE || pct == 0 || pct > 90) {
+				fprintf(stderr, "memory level should be in range 1-90\n");
+				print_usage();
+				return 1;
+			}
+			usemem = (double)pct / 100.0;
+			thisParam += 2;
+		} else if (*argv[1+thisParam] == '-') {
+			fprintf(stderr, "unrecognized option: %s\n", argv[1+thisParam]);
+			print_usage();
+			return 1;
+		} else
+			break;
+	}
+
 	if (argc-thisParam < 2)
 		printf("Run length not specified in the command line.  Burning for 10 secs\n");
-	else 
-		runLength = atoi(argv[1+thisParam]);
+	else {
+		errno = 0;
+		unsigned long rl = std::strtoul(argv[1+thisParam], NULL, 10);
+		if (errno == ERANGE || rl == 0 || rl > INT_MAX) {
+			fprintf(stderr, "invalid run length: %s\n", argv[1+thisParam]);
+			print_usage();
+			return 1;
+		}
+		runLength = (int) rl;
+	}
 
 	tty_output = isatty(1);
 
