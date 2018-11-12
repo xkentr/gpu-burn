@@ -53,6 +53,7 @@
 
 static bool tty_output;
 static double usemem = USEMEM;
+static char *progname;
 
 void checkError(int rCode, std::string desc = "") {
 	static std::map<int, std::string> g_errorStrings;
@@ -617,7 +618,7 @@ template<class T> void launch(int runLength, bool useDoubles) {
 void print_usage (void)
 {
 	printf("Usage:\n");
-	printf("    %s [options] [run-length]\n\n");
+	printf("    %s [options] [run-length]\n\n", progname);
 	printf("run-length\t\tnumber of seconds to run, default 10, 0=infinite\n\n");
 	printf("Options:\n");
 	printf("  -d\t\t\tUse doubles instead of floats\n");
@@ -630,6 +631,7 @@ int main(int argc, char **argv) {
 	int runLength = 10;
 	bool useDoubles = false;
 	int thisParam = 0;
+	progname = argv[0];
 	while (argc - thisParam >= 2) {
 		if (std::string(argv[1+thisParam]) == "-h") {
 			print_usage();
