@@ -457,14 +457,17 @@ void listenClients(std::vector<int> clientFd, std::vector<pid_t> clientPid, int 
 		for (size_t i = 0; i < clientFd.size(); ++i)
 			FD_SET(clientFd.at(i), &waitHandles);
 
-		done = startTime + runTime <= thisTime;
+		done = runTime == 0 ? false : (startTime + runTime <= thisTime);
 		// Printing progress (if a child has initted already)
 		if (childReport) {
 			float elapsed = (float)(thisTime-startTime);
 			if (tty_output || nextReport < elapsed || done) {
 				if (tty_output)
 					putchar('\r');
-				printf("%.1f%%  ", 100.0f * elapsed/float(runTime));
+				if (runTime == 0)
+					printf("%us ", thisTime-startTime);
+				else
+					printf("%.1f%%  ", 100.0f * elapsed/float(runTime));
 				printf("proc'd: ");
 				for (size_t i = 0; i < clientCalcs.size(); ++i) {
 					printf("%d (%.0f Gflop/s) ", clientCalcs.at(i), clientGflops.at(i));
@@ -615,12 +618,12 @@ void print_usage (void)
 {
 	printf("Usage:\n");
 	printf("    %s [options] [run-length]\n\n");
-	printf("run-length\t\tnumber of seconds to run, default 10\n\n");
+	printf("run-length\t\tnumber of seconds to run, default 10, 0=infinite\n\n");
 	printf("Options:\n");
 	printf("  -d\t\t\tUse doubles instead of floats\n");
 	printf("  -m PCT\t\tUse PCT percent of available memory (default %u)\n",
 	       (unsigned)(usemem * 100.0));
-	printf("  -h\t\tPrint this help\n");
+	printf("  -h\t\t\tPrint this help\n");
 }
 
 int main(int argc, char **argv) {
@@ -663,7 +666,7 @@ int main(int argc, char **argv) {
 	else {
 		errno = 0;
 		unsigned long rl = std::strtoul(argv[1+thisParam], NULL, 10);
-		if (errno == ERANGE || rl == 0 || rl > INT_MAX) {
+		if (errno == ERANGE || rl > INT_MAX) {
 			fprintf(stderr, "invalid run length: %s\n", argv[1+thisParam]);
 			print_usage();
 			return 1;
