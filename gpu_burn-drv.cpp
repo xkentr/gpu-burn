@@ -353,14 +353,17 @@ void updateTemps(int handle, std::vector<int> *temps) {
 	static bool done;
 
 	int curPos = 0;
-	while (!done) {
+	while (!done && curPos <= readSize) {
 		n = read(handle, data+curPos, sizeof(char));
 		if (n <= 0) {
 			done = true;
 			break;
 		}
-		if (data[curPos] == '\n')
+		curPos += n;
+		if (data[curPos] == '\n') {
+			curPos -= 1;
 			break;
+		}
 	}
 
 	data[curPos] = 0;
